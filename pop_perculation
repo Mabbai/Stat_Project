@@ -1,0 +1,121 @@
+import random as rn
+
+import networkx as nx
+import matplotlib.pyplot as plt
+
+#För utan diagonaler  och GRAPH_SIZE = 1000 har jag alltid hittat väg för EDGE_PROB = 0.50 + 10**-2, dock inte för 0.50 + 10**-3
+
+GRAPH_SIZE = 1000
+EDGE_PROB = 0.50 + 10**-2 
+
+UP_DIAG = False
+DOWN_DIAG = False
+
+SHOW_GRAPH = False #Gör det endast för små grafer >15
+
+GRAPH = {}
+
+def add_edge(a,b):
+  a = f'{a[0]},{a[1]}'
+  b = f'{b[0]},{b[1]}'
+  if a not in GRAPH:
+    GRAPH[a] = []
+  GRAPH[a].append(b)
+  if b not in GRAPH:
+    GRAPH[b] = []
+  GRAPH[b].append(a)
+
+def add_edge_rn(a,b):
+  if rn.random() < EDGE_PROB:
+    add_edge(a,b)
+
+def generate_graph():
+  n = GRAPH_SIZE
+
+  for i in range(0,n): # gör alla kanter på sidorna 
+    add_edge_rn((0,i),(0,i+1))
+    add_edge_rn((n,i),(n,i+1))
+    add_edge_rn((i,0),(i+1,0))
+    add_edge_rn((i,n),(i+1,n))
+
+  for i in range(2,n,2): # gör kant in i boxen från varannan nod på sidorna
+    add_edge_rn((0,i),(1,i))
+    add_edge_rn((n,i),(n-1,i))
+    add_edge_rn((i,0),(i,1))
+    add_edge_rn((i,n),(i,n-1))
+
+  for i in range(1,n,2): # Fyller hela boxen
+    for j in range(1,n,2):
+      add_edge_rn((i,j),(i+1,j))
+      add_edge_rn((i,j),(i-1,j))
+      add_edge_rn((i,j),(i,j+1))
+      add_edge_rn((i,j),(i,j-1))
+  for i in range(2,n-1,2):
+    for j in range(2,n-1,2):
+      add_edge_rn((i,j),(i+1,j))
+      add_edge_rn((i,j),(i-1,j))
+      add_edge_rn((i,j),(i,j+1))
+      add_edge_rn((i,j),(i,j-1))
+
+  ## För diagonaler åt ena hållet (UPPÅTT)
+  if UP_DIAG:
+    for i in range(0,n):
+      for j in range(0,n):
+        add_edge_rn((i,j),(i+1,j+1))
+
+  ## För diagonaler åt andra hållet (NEDÅT)
+  if DOWN_DIAG:
+    for i in range(0,n):
+      for j in range(1,n+1):
+        add_edge_rn((i,j),(i+1,j-1))
+
+generate_graph()
+
+#print(f'{G} \n')
+
+def draw_graph_from_dict(grid) -> None:
+  G = nx.Graph()
+  for node, neighbors in grid.items():
+    G.add_node(node)
+    for neighbor in neighbors:
+      G.add_edge(node, neighbor)
+
+  pos = {node: tuple(map(int,node.split(','))) for node in G.nodes}
+  nx.draw(G, pos, with_labels=True, node_size=100,
+          node_color='lightgreen', font_size=4)
+  plt.gca()
+  plt.show()
+
+if SHOW_GRAPH:
+  draw_graph_from_dict(GRAPH)
+
+
+
+PATH_FOUND = False
+
+def grow_tree_canopy(sapling):
+  tree_canopy = {sapling}
+  while not PATH_FOUND and tree_canopy:
+    old_canopy = tree_canopy
+    tree_canopy = {new_leaf for leaf in tree_canopy for new_leaf in grow_leaf(leaf) if new_leaf not in old_canopy}
+    print(tree_canopy)
+     
+def grow_leaf(leaf):
+  x_val = int(leaf.split(',')[0])
+  if x_val == GRAPH_SIZE:
+    global PATH_FOUND 
+    PATH_FOUND = True
+  new_leafs = GRAPH.pop(leaf,[])
+  return new_leafs
+
+def run_search():
+  for i in range(0,GRAPH_SIZE+1):
+    node = f'0,{i}'
+    if GRAPH.get(node):
+      grow_tree_canopy(node)
+    if PATH_FOUND:
+      print("Path Found!")
+      return
+  print("No Path Found")
+
+run_search()
