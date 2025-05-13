@@ -2,16 +2,21 @@ import random as rn
 
 import networkx as nx
 import matplotlib.pyplot as plt
+import copy
+
+
+import matplotlib.colors as mcolors
+
 
 #För utan diagonaler  och GRAPH_SIZE = 1000 har jag alltid hittat väg för EDGE_PROB = 0.50 + 10**-2, dock inte för 0.50 + 10**-3
 
-GRAPH_SIZE = 1000
-EDGE_PROB = 0.50 + 10**-2 
+GRAPH_SIZE = 10 #funkar endast för jämna grafstorlekar
+EDGE_PROB = 0.5
 
-UP_DIAG = False
-DOWN_DIAG = False
+UP_DIAG = 0
+DOWN_DIAG = 0
 
-SHOW_GRAPH = False #Gör det endast för små grafer >15
+SHOW_GRAPH = 1 #Gör det endast för små grafer <15
 
 GRAPH = {}
 
@@ -29,15 +34,20 @@ def add_edge_rn(a,b):
   if rn.random() < EDGE_PROB:
     add_edge(a,b)
 
-def generate_graph():
+def generate_graph(GRAPH_SIZE, EDGE_PROB, UP_DIAG, DOWN_DIAG):
   n = GRAPH_SIZE
+
+  if SHOW_GRAPH:
+    for i in range(0,n+1):
+      for j in range(0,n+1):
+        GRAPH[f'{i},{j}'] = []
 
   for i in range(0,n): # gör alla kanter på sidorna 
     add_edge_rn((0,i),(0,i+1))
     add_edge_rn((n,i),(n,i+1))
     add_edge_rn((i,0),(i+1,0))
     add_edge_rn((i,n),(i+1,n))
-
+  
   for i in range(2,n,2): # gör kant in i boxen från varannan nod på sidorna
     add_edge_rn((0,i),(1,i))
     add_edge_rn((n,i),(n-1,i))
@@ -50,8 +60,8 @@ def generate_graph():
       add_edge_rn((i,j),(i-1,j))
       add_edge_rn((i,j),(i,j+1))
       add_edge_rn((i,j),(i,j-1))
-  for i in range(2,n-1,2):
-    for j in range(2,n-1,2):
+  for i in range(2,n,2):
+    for j in range(2,n,2):
       add_edge_rn((i,j),(i+1,j))
       add_edge_rn((i,j),(i-1,j))
       add_edge_rn((i,j),(i,j+1))
@@ -69,53 +79,91 @@ def generate_graph():
       for j in range(1,n+1):
         add_edge_rn((i,j),(i+1,j-1))
 
-generate_graph()
+generate_graph(GRAPH_SIZE, EDGE_PROB, UP_DIAG, DOWN_DIAG)
 
 #print(f'{G} \n')
 
-def draw_graph_from_dict(grid) -> None:
-  G = nx.Graph()
-  for node, neighbors in grid.items():
-    G.add_node(node)
-    for neighbor in neighbors:
-      G.add_edge(node, neighbor)
-
-  pos = {node: tuple(map(int,node.split(','))) for node in G.nodes}
-  nx.draw(G, pos, with_labels=True, node_size=100,
-          node_color='lightgreen', font_size=4)
-  plt.gca()
-  plt.show()
-
 if SHOW_GRAPH:
-  draw_graph_from_dict(GRAPH)
-
-
+  BACKUP_GRAPH =  copy.deepcopy(GRAPH)
 
 PATH_FOUND = False
+TOTAL_TREE = []
 
 def grow_tree_canopy(sapling):
   tree_canopy = {sapling}
   while not PATH_FOUND and tree_canopy:
-    old_canopy = tree_canopy
-    tree_canopy = {new_leaf for leaf in tree_canopy for new_leaf in grow_leaf(leaf) if new_leaf not in old_canopy}
-    print(tree_canopy)
-     
+    #print(tree_canopy)
+    
+    tree_canopy = {new_leaf for leaf in tree_canopy for new_leaf in grow_leaf(leaf) if new_leaf not in tree_canopy}
+    
+    if not PATH_FOUND and SHOW_GRAPH:
+      global TOTAL_TREE
+      if tree_canopy:
+        TOTAL_TREE.append(tree_canopy)
+      else:
+        TOTAL_TREE = []
+
+
 def grow_leaf(leaf):
   x_val = int(leaf.split(',')[0])
   if x_val == GRAPH_SIZE:
     global PATH_FOUND 
     PATH_FOUND = True
+    return []
   new_leafs = GRAPH.pop(leaf,[])
   return new_leafs
 
-def run_search():
+def run_search(GRAPH, GRAPH_SIZE):
   for i in range(0,GRAPH_SIZE+1):
     node = f'0,{i}'
-    if GRAPH.get(node):
+    start = GRAPH.get(node)
+    if start:
       grow_tree_canopy(node)
     if PATH_FOUND:
       print("Path Found!")
       return
   print("No Path Found")
 
-run_search()
+run_search(GRAPH, GRAPH_SIZE)
+
+
+def draw_graph_from_dict(grid) -> None:
+  G = nx.Graph()
+  node_colors = []
+  for node, neighbors in grid.items():
+
+    G.add_node(node)
+    for neighbor in neighbors:
+      G.add_edge(node, neighbor)
+
+
+  # Normalize group indices to [0.0, 1.0]
+  norm = mcolors.Normalize(vmin=0, vmax=len(TOTAL_TREE))
+  blue_red_cmap = mcolors.LinearSegmentedColormap.from_list(
+    'cold_to_warm', ['#ff3300', '#008000'], N=256
+  )
+
+  # Map each node to its group index (or None)
+  node_to_group = {
+    node: i for i, group in enumerate(TOTAL_TREE) for node in group
+  }
+
+  node_colors = [
+    blue_red_cmap(norm(node_to_group.get(node))) if node in node_to_group
+    else (0.3, 0.3, 0.3)
+    for node in G.nodes
+  ]
+  
+
+  print(node_colors)
+  print(len(node_colors))
+  print(len(TOTAL_TREE))
+  
+  pos = {node: tuple(map(int,node.split(','))) for node in G.nodes}
+  nx.draw(G, pos, with_labels=True, node_size=100,node_color=node_colors, font_size=4)
+  plt.gca()
+  plt.show()
+
+
+if SHOW_GRAPH:
+  draw_graph_from_dict(BACKUP_GRAPH)
